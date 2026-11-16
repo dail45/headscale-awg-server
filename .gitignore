@@ -1,0 +1,25 @@
+# Runtime state, keys and databases (contain private keys, tokens and sessions)
+data/
+
+# Secrets directory (cookie secrets, tokens)
+secrets/
+
+# Environment files with live credentials
+.env
+*.env.local
+
+# Live configurations containing secrets/API keys or local infrastructure data
+headplane/config.yaml
+headscale/config.yaml
+
+# Local backups and key dumps
+backups/
+*.bak
+*.backup
+
+# OS & Editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~

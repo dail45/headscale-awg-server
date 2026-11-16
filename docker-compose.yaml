@@ -1,0 +1,70 @@
+# Headscale 0.29 + Headplane 0.8.2 + Tailscale-AWG 1.104.4
+# nginx-ui is already connected to the external Docker bridge named "nginx".
+services:
+  headscale:
+    image: headscale/headscale:0.29.0
+    container_name: hs-awg-headscale
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
+      - ./data/headscale:/var/lib/headscale
+    ports:
+      - "3478:3478/udp" # own STUN; DERP HTTPS goes through nginx :443
+    networks:
+      backend:
+        aliases: [headscale]
+      proxy:
+        aliases: [hs-awg-headscale]
+
+  headplane:
+    image: ghcr.io/tale/headplane:0.8.2
+    container_name: hs-awg-headplane
+    restart: unless-stopped
+    depends_on:
+      - headscale
+    volumes:
+      - ./headplane/config.yaml:/etc/headplane/config.yaml:ro
+      - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
+      - ./data/headplane:/var/lib/headplane
+      - ./secrets/headplane-cookie:/run/secrets/headplane-cookie:ro
+    networks:
+      - backend
+      - proxy
+
+  tailscaled:
+    # Based on the upstream installer compose; keep containerboot as entrypoint.
+    image: ltlei/tailscale-awg:v1.104.4
+    container_name: hs-awg-tailscaled
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      net.ipv4.ip_forward: "1"
+      net.ipv6.conf.all.forwarding: "1"
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./data/tailscale-state:/var/lib/tailscale
+    environment:
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SOCKET: /var/run/tailscale/tailscaled.sock
+      TS_USERSPACE: "false"
+      TS_AUTH_ONCE: "true"
+      TS_HOSTNAME: "awg-exit"
+      TS_TAILSCALED_EXTRA_ARGS: "--port=41641"
+      TS_AUTHKEY: "${TS_AUTHKEY:-}"
+      TS_EXTRA_ARGS: "${TS_EXTRA_ARGS:---advertise-exit-node --reset}"
+    ports:
+      - "41641:41641/udp"
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+  proxy:
+    external: true
+    name: nginx
